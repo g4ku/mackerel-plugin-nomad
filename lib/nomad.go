@@ -104,26 +104,26 @@ func (np NomadPlugin) FetchMetrics() (map[string]interface{}, error) {
 
 	for _, job := range jobs {
 		for key, summary := range job.JobSummary.Summary {
-			task := job.JobSummary.JobID + "/" + key
+			task := job.JobSummary.JobID + "_" + key
 
-			result["jobs."+task+".queued"] = summary.Queued
-			result["jobs."+task+".complete"] = summary.Complete
-			result["jobs."+task+".failed"] = summary.Failed
-			result["jobs."+task+".running"] = summary.Running
-			result["jobs."+task+".starting"] = summary.Starting
-			result["jobs."+task+".lost"] = summary.Lost
+			result["jobs."+task+".queued"] = uint64(summary.Queued)
+			result["jobs."+task+".complete"] = uint64(summary.Complete)
+			result["jobs."+task+".failed"] = uint64(summary.Failed)
+			result["jobs."+task+".running"] = uint64(summary.Running)
+			result["jobs."+task+".starting"] = uint64(summary.Starting)
+			result["jobs."+task+".lost"] = uint64(summary.Lost)
 		}
 	}
 
 	for _, deployment := range deployments {
 		for key, taskGroup := range deployment.TaskGroups {
-			task := deployment.JobID + "/" + key
+			task := deployment.JobID + "_" + key
 
-			result["deployments."+task+".desired_canaries"] = taskGroup.DesiredCanaries
-			result["deployments."+task+".desired_total"] = taskGroup.DesiredTotal
-			result["deployments."+task+".placed_allocs"] = taskGroup.PlacedAllocs
-			result["deployments."+task+".healthy_allocs"] = taskGroup.HealthyAllocs
-			result["deployments."+task+".unhealthy_allocs"] = taskGroup.UnhealthyAllocs
+			result["deployments."+task+".desired_canaries"] = uint64(taskGroup.DesiredCanaries)
+			result["deployments."+task+".desired_total"] = uint64(taskGroup.DesiredTotal)
+			result["deployments."+task+".placed_allocs"] = uint64(taskGroup.PlacedAllocs)
+			result["deployments."+task+".healthy_allocs"] = uint64(taskGroup.HealthyAllocs)
+			result["deployments."+task+".unhealthy_allocs"] = uint64(taskGroup.UnhealthyAllocs)
 		}
 	}
 
