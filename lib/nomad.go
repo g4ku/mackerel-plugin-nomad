@@ -1,12 +1,9 @@
 package mpnomad
 
 import (
-	"encoding/json"
 	"flag"
-	"io/ioutil"
-	"net/http"
 
-	"github.com/g4ku/mackerel-plugin-nomad/lib/api"
+	"github.com/hashicorp/nomad/api"
 	mp "github.com/mackerelio/go-mackerel-plugin-helper"
 	"github.com/mackerelio/golib/logging"
 )
@@ -15,7 +12,7 @@ var logger = logging.GetLogger("metrics.plugin.nomad")
 
 // NomadPlugin plugin
 type NomadPlugin struct {
-	Endpoint string
+	Client *api.Client
 }
 
 // GraphDefinition interface for mackerelplugin
@@ -47,46 +44,22 @@ func (np NomadPlugin) GraphDefinition() map[string]mp.Graphs {
 	}
 }
 
-// fetch REST API
-func fetchAPI(endpoint string, api string) ([]byte, error) {
-	url := endpoint + api
-	resp, err := http.Get(url)
+func (np NomadPlugin) getJobs() ([]*api.JobListStub, error) {
+	jobs, _, err := np.Client.Jobs().List(&api.QueryOptions{})
 	if err != nil {
-		logger.Warningf("HTTP get error:", err)
+		logger.Warningf("Failed to get jobs api", err)
 		return nil, err
 	}
-
-	defer resp.Body.Close()
-	byteArray, _ := ioutil.ReadAll(resp.Body)
-	return byteArray, nil
+	return jobs, nil
 }
 
-func (np NomadPlugin) getJobs() ([]api.Jobs, error) {
-	jsonBytes, err := fetchAPI(np.Endpoint, "/v1/jobs")
+func (np NomadPlugin) getDeployments() ([]*api.Deployment, error) {
+	deployments, _, err := np.Client.Deployments().List(&api.QueryOptions{})
 	if err != nil {
+		logger.Warningf("Failed to get deployments api", err)
 		return nil, err
 	}
-
-	data := new([]api.Jobs)
-	if err := json.Unmarshal(jsonBytes, data); err != nil {
-		logger.Warningf("JSON Unmarshal error:", err)
-		return nil, err
-	}
-	return *data, nil
-}
-
-func (np NomadPlugin) getDeployments() ([]api.Deployments, error) {
-	jsonBytes, err := fetchAPI(np.Endpoint, "/v1/deployments")
-	if err != nil {
-		return nil, err
-	}
-
-	data := new([]api.Deployments)
-	if err := json.Unmarshal(jsonBytes, data); err != nil {
-		logger.Warningf("JSON Unmarshal error:", err)
-		return nil, err
-	}
-	return *data, nil
+	return deployments, nil
 }
 
 // FetchMetrics interface for mackerelplugin
@@ -136,10 +109,13 @@ func Do() {
 	optPort := flag.String("port", "4646", "Port")
 	flag.Parse()
 
-	endpoint := "http://" + *optAddress + ":" + *optPort
+	cfg := api.DefaultConfig()
+	cfg.Address = "http://" + *optAddress + ":" + *optPort
+
+	client, _ := api.NewClient(cfg)
 
 	np := NomadPlugin{
-		Endpoint: endpoint,
+		Client: client,
 	}
 	helper := mp.NewMackerelPlugin(np)
 
