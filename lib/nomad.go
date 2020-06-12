@@ -41,6 +41,27 @@ func (np NomadPlugin) GraphDefinition() map[string]mp.Graphs {
 				{Name: "unhealthy_allocs", Label: "UnhealthyAllocs"},
 			},
 		},
+		"agent.members": {
+			Label: "Nomad agent members",
+			Unit:  "integer",
+			Metrics: []mp.Metrics{
+				{Name: "alive", Label: "Alive"},
+				{Name: "leaving", Label: "Leaving"},
+				{Name: "left", Label: "Left"},
+				{Name: "failed", Label: "Failed"},
+			},
+		},
+		"nodes": {
+			Label: "Nomad nodes",
+			Unit:  "integer",
+			Metrics: []mp.Metrics{
+				{Name: "initializing", Label: "Initializing"},
+				{Name: "ready", Label: "Ready"},
+				{Name: "down", Label: "Down"},
+				{Name: "ineligible", Label: "Ineligible"},
+				{Name: "draining", Label: "Draining"},
+			},
+		},
 	}
 }
 
@@ -62,6 +83,24 @@ func (np NomadPlugin) getDeployments() ([]*api.Deployment, error) {
 	return deployments, nil
 }
 
+func (np NomadPlugin) getAgentMembers() (*api.ServerMembers, error) {
+	members, err := np.Client.Agent().Members()
+	if err != nil {
+		logger.Warningf("Failed to get agent/members api", err)
+		return nil, err
+	}
+	return members, nil
+}
+
+func (np NomadPlugin) getNodes() ([]*api.NodeListStub, error) {
+	nodes, _, err := np.Client.Nodes().List(&api.QueryOptions{})
+	if err != nil {
+		logger.Warningf("Failed to get agent/members api", err)
+		return nil, err
+	}
+	return nodes, nil
+}
+
 // FetchMetrics interface for mackerelplugin
 func (np NomadPlugin) FetchMetrics() (map[string]interface{}, error) {
 	jobs, err := np.getJobs()
@@ -69,6 +108,14 @@ func (np NomadPlugin) FetchMetrics() (map[string]interface{}, error) {
 		return nil, err
 	}
 	deployments, err := np.getDeployments()
+	if err != nil {
+		return nil, err
+	}
+	agentMembers, err := np.getAgentMembers()
+	if err != nil {
+		return nil, err
+	}
+	nodes, err := np.getNodes()
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +146,51 @@ func (np NomadPlugin) FetchMetrics() (map[string]interface{}, error) {
 			result["deployments."+task+".unhealthy_allocs"] = uint64(taskGroup.UnhealthyAllocs)
 		}
 	}
+
+	// https://github.com/hashicorp/nomad/blob/master/ui/mirage/factories/agent.js#L7
+	alive, leaving, left, failed := 0, 0, 0, 0
+	for _, member := range agentMembers.Members {
+		switch member.Status {
+		case "alive":
+			alive++
+		case "leaving":
+			leaving++
+		case "left":
+			left++
+		case "failed":
+			failed++
+		default:
+			logger.Warningf("Unkown agent member status", member.Status)
+		}
+	}
+	result["alive"] = uint64(alive)
+	result["leaving"] = uint64(leaving)
+	result["left"] = uint64(left)
+	result["failed"] = uint64(failed)
+
+	// https://github.com/hashicorp/nomad/blob/master/ui/app/controllers/clients/index.js#L67
+	initializing, ready, down, ineligible, draining := 0, 0, 0, 0, 0
+	for _, node := range nodes {
+		switch node.Status {
+		case "initializing":
+			initializing++
+		case "ready":
+			ready++
+		case "down":
+			down++
+		case "ineligible":
+			ineligible++
+		case "draining":
+			draining++
+		default:
+			logger.Warningf("Unkown node status", node.Status)
+		}
+	}
+	result["initializing"] = uint64(initializing)
+	result["ready"] = uint64(ready)
+	result["down"] = uint64(down)
+	result["ineligible"] = uint64(ineligible)
+	result["draining"] = uint64(draining)
 
 	return result, nil
 }
