@@ -95,7 +95,7 @@ func (np NomadPlugin) getAgentMembers() (*api.ServerMembers, error) {
 func (np NomadPlugin) getNodes() ([]*api.NodeListStub, error) {
 	nodes, _, err := np.Client.Nodes().List(&api.QueryOptions{})
 	if err != nil {
-		logger.Warningf("Failed to get agent/members api", err)
+		logger.Warningf("Failed to get nodes api", err)
 		return nil, err
 	}
 	return nodes, nil
