@@ -257,7 +257,6 @@ func (np *NomadPlugin) FetchMetrics() (map[string]float64, error) {
 
 	var w sync.WaitGroup
 	var mu sync.RWMutex
-	prefixList := make([]string, 0)
 	for _, a := range runningAllocs {
 		w.Add(1)
 		go func(a *api.AllocationListStub) {
@@ -274,7 +273,6 @@ func (np *NomadPlugin) FetchMetrics() (map[string]float64, error) {
 				// alloc.<JobID>_<TaskGroup>_<Task>.<Task>-<AllocID>
 				prefix := fmt.Sprintf("alloc.%s_%s_%s.%s-%s", a.JobID, a.TaskGroup, key, key, a.ID[:8])
 				mu.Lock()
-				prefixList = append(prefixList, prefix)
 				result[prefix+".cpu_percent"] = stats.Tasks[key].ResourceUsage.CpuStats.Percent
 				result[prefix+".cpu_totalticks"] = stats.Tasks[key].ResourceUsage.CpuStats.TotalTicks
 				result[prefix+".memory_rss_bytes"] = float64(stats.Tasks[key].ResourceUsage.MemoryStats.RSS)
