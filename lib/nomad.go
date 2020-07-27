@@ -2,6 +2,7 @@ package mpnomad
 
 import (
 	"flag"
+	"fmt"
 	"sync"
 
 	"github.com/hashicorp/nomad/api"
@@ -14,7 +15,6 @@ var logger = logging.GetLogger("metrics.plugin.nomad")
 // NomadPlugin plugin
 type NomadPlugin struct {
 	Client *api.Client
-	Tasks  []string
 }
 
 // GraphDefinition interface for mackerelplugin
@@ -64,17 +64,15 @@ func (np *NomadPlugin) GraphDefinition() map[string]mp.Graphs {
 			{Name: "draining", Label: "Draining"},
 		},
 	}
-	for _, task := range np.Tasks {
-		def[task+".#"] = mp.Graphs{
-			Label: "Allocation status by task",
-			Unit:  "integer",
-			Metrics: []mp.Metrics{
-				{Name: "cpu_percent", Label: "CPU usage"},
-				{Name: "cpu_totalticks", Label: "CPU total ticks"},
-				{Name: "memory_rss_bytes", Label: "Memory RSS usage"},
-				{Name: "allocated_memory_megabytes", Label: "Memory allocated to tasks"},
-			},
-		}
+	def["alloc.*.#"] = mp.Graphs{
+		Label: "Allocation status by task",
+		Unit:  "integer",
+		Metrics: []mp.Metrics{
+			{Name: "cpu_percent", Label: "CPU usage"},
+			{Name: "cpu_totalticks", Label: "CPU total ticks"},
+			{Name: "memory_rss_bytes", Label: "Memory RSS usage"},
+			{Name: "allocated_memory_megabytes", Label: "Memory allocated to tasks"},
+		},
 	}
 	return def
 }
@@ -147,10 +145,6 @@ func (np NomadPlugin) getAllocStats(alloc *api.Allocation) (*api.AllocResourceUs
 		return nil, err
 	}
 	return stats, nil
-}
-
-func (np *NomadPlugin) updateTasks(prefixList []string) {
-	np.Tasks = removeDuplicate(prefixList)
 }
 
 // Sliceの重複要素削除
@@ -277,20 +271,19 @@ func (np *NomadPlugin) FetchMetrics() (map[string]float64, error) {
 				return
 			}
 			for key := range a.TaskStates {
-				prefix := a.JobID + "_" + a.TaskGroup + "_" + key
-				uniqueKey := prefix + "." + a.ID[:8]
+				// alloc.<JobID>_<TaskGroup>_<Task>.<Task>-<AllocID>
+				prefix := fmt.Sprintf("alloc.%s_%s_%s.%s-%s", a.JobID, a.TaskGroup, key, key, a.ID[:8])
 				mu.Lock()
 				prefixList = append(prefixList, prefix)
-				result[uniqueKey+".cpu_percent"] = stats.Tasks[key].ResourceUsage.CpuStats.Percent
-				result[uniqueKey+".cpu_totalticks"] = stats.Tasks[key].ResourceUsage.CpuStats.TotalTicks
-				result[uniqueKey+".memory_rss_bytes"] = float64(stats.Tasks[key].ResourceUsage.MemoryStats.RSS)
-				result[uniqueKey+".allocated_memory_megabytes"] = float64(*alloc.TaskResources[key].MemoryMB)
+				result[prefix+".cpu_percent"] = stats.Tasks[key].ResourceUsage.CpuStats.Percent
+				result[prefix+".cpu_totalticks"] = stats.Tasks[key].ResourceUsage.CpuStats.TotalTicks
+				result[prefix+".memory_rss_bytes"] = float64(stats.Tasks[key].ResourceUsage.MemoryStats.RSS)
+				result[prefix+".allocated_memory_megabytes"] = float64(*alloc.TaskResources[key].MemoryMB)
 				mu.Unlock()
 			}
 		}(a)
 	}
 	w.Wait()
-	np.updateTasks(prefixList)
 
 	return result, nil
 }
