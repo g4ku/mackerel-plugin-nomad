@@ -4,7 +4,7 @@ import (
 	"flag"
 
 	"github.com/hashicorp/nomad/api"
-	mp "github.com/mackerelio/go-mackerel-plugin-helper"
+	mp "github.com/mackerelio/go-mackerel-plugin"
 	"github.com/mackerelio/golib/logging"
 )
 
@@ -16,7 +16,7 @@ type NomadPlugin struct {
 }
 
 // GraphDefinition interface for mackerelplugin
-func (np NomadPlugin) GraphDefinition() map[string]mp.Graphs {
+func (np *NomadPlugin) GraphDefinition() map[string]mp.Graphs {
 	return map[string]mp.Graphs{
 		"jobs.#": {
 			Label: "Nomad job status",
@@ -102,7 +102,7 @@ func (np NomadPlugin) getNodes() ([]*api.NodeListStub, error) {
 }
 
 // FetchMetrics interface for mackerelplugin
-func (np NomadPlugin) FetchMetrics() (map[string]interface{}, error) {
+func (np *NomadPlugin) FetchMetrics() (map[string]float64, error) {
 	jobs, err := np.getJobs()
 	if err != nil {
 		return nil, err
@@ -209,7 +209,6 @@ func Do() {
 	np := NomadPlugin{
 		Client: client,
 	}
-	helper := mp.NewMackerelPlugin(np)
 
-	helper.Run()
+	mp.NewMackerelPlugin(&np).Run()
 }
